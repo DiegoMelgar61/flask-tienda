@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, redirect, render_template_string
 import psycopg2
 
@@ -49,19 +50,23 @@ formulario_html = '''
     </table>
 '''
 
+# 🔁 Usar URL de base de datos de entorno
+def conectar_db():
+    try:
+        db_url = os.environ.get("postgresql://postgres:iIziGCQWrDrhpTCFuQyetTUGpAqTMEFu@postgres.railway.internal:5432/railway")  # viene desde Render
+        conn = psycopg2.connect(db_url)
+        return conn
+    except Exception as e:
+        print("❌ Error de conexión:", e)
+        return None
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     mensaje = ''
+    prendas = []
 
-    try:
-        conn = psycopg2.connect(
-            dbname='tienda',
-            user='postgres',
-            password='familiamelgar',
-            host='localhost',
-            port='5432',    
-            options='-c client_encoding=UTF8'
-        )
+    conn = conectar_db()
+    if conn:
         cur = conn.cursor()
 
         if request.method == 'POST':
@@ -85,52 +90,38 @@ def index():
 
         cur.close()
         conn.close()
-
-    except Exception:
+    else:
         mensaje = '❌ Error de conexión a la base de datos.'
-        prendas = []
 
     return render_template_string(formulario_html, mensaje=mensaje, prendas=prendas)
 
-# 👉 Ruta para procesar la venta
 @app.route('/vender', methods=['POST'])
 def vender():
     id_ropa = request.form['id_ropa']
     precio_venta = request.form['precio_venta']
 
-    try:
-        conn = psycopg2.connect(
-            dbname='tienda',
-            user='postgres',
-            password='familiamelgar',
-            host='localhost',
-            port='5432',
-            options='-c client_encoding=UTF8'
-        )
-        cur = conn.cursor()
+    conn = conectar_db()
+    if conn:
+        try:
+            cur = conn.cursor()
 
-        # Insertar en factura
-        cur.execute(
-            "INSERT INTO factura (id_ropa, precio_venta) VALUES (%s, %s)",
-            (id_ropa, precio_venta)
-        )
-
-        # Marcar como vendida
-        cur.execute(
-            "UPDATE ropa SET estado = 'vendida' WHERE id_ropa = %s",
-            (id_ropa,)
-        )
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-    except Exception as e:
-        print(f'❌ Error al vender: {e}')
+            cur.execute(
+                "INSERT INTO factura (id_ropa, precio_venta) VALUES (%s, %s)",
+                (id_ropa, precio_venta)
+            )
+            cur.execute(
+                "UPDATE ropa SET estado = 'vendida' WHERE id_ropa = %s",
+                (id_ropa,)
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            print(f'❌ Error al vender: {e}')
+        finally:
+            conn.close()
 
     return redirect('/')
 
+# 👇 Corrección para Render: puerto dinámico
 if __name__ == '__main__':
-    import os
-app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True)
-
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True)
