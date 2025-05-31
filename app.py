@@ -54,7 +54,7 @@ formulario_html = '''
 def conectar_db():
     try:
         db_url = os.environ.get("postgresql://postgres:iIziGCQWrDrhpTCFuQyetTUGpAqTMEFu@postgres.railway.internal:5432/railway")  # viene desde Render
-        conn = psycopg2.connect(db_url)
+        conn = psycopg2.connect(DATABASE_URL)
         return conn
     except Exception as e:
         print("❌ Error de conexión:", e)
