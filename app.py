@@ -50,12 +50,10 @@ formulario_html = '''
     </table>
 '''
 
-# 🔁 Usar URL de base de datos de entorno
 def conectar_db():
     try:
-        DATABASE_URL = os.environ.get("DATABASE_URL")  # 👈 correcto: la variable de entorno
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
+        DATABASE_URL = os.environ.get("DATABASE_URL")
+        return psycopg2.connect(DATABASE_URL)
     except Exception as e:
         print("❌ Error de conexión:", e)
         return None
@@ -67,29 +65,36 @@ def index():
 
     conn = conectar_db()
     if conn:
-        cur = conn.cursor()
+        try:
+            cur = conn.cursor()
 
-        if request.method == 'POST':
-            tipo = request.form['tipo']
-            talla = request.form['talla']
-            genero = request.form['genero']
-            marca = request.form['marca']
+            if request.method == 'POST':
+                tipo = request.form['tipo']
+                talla = request.form['talla']
+                genero = request.form['genero']
+                marca = request.form['marca']
+                try:
+                    cur.execute(
+                        "INSERT INTO ropa (tipo, talla, genero, marca, estado) VALUES (%s, %s, %s, %s, %s)",
+                        (tipo, talla, genero, marca, 'disponible')
+                    )
+                    conn.commit()
+                    mensaje = '✅ Prenda guardada correctamente.'
+                except Exception as insert_err:
+                    conn.rollback()
+                    mensaje = '❌ Error al guardar la prenda.'
+                    print("Insert error:", insert_err)
 
             try:
-                cur.execute(
-                    "INSERT INTO ropa (tipo, talla, genero, marca) VALUES (%s, %s, %s, %s)",
-                    (tipo, talla, genero, marca)
-                )
-                conn.commit()
-                mensaje = '✅ Prenda guardada correctamente.'
-            except Exception:
-                mensaje = '❌ Error al guardar la prenda.'
+                cur.execute("SELECT * FROM ropa ORDER BY id_ropa")
+                prendas = cur.fetchall()
+            except Exception as select_err:
+                mensaje = '❌ Error al cargar prendas.'
+                print("Select error:", select_err)
 
-        cur.execute("SELECT * FROM ropa ORDER BY id_ropa")
-        prendas = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            cur.close()
+        finally:
+            conn.close()
     else:
         mensaje = '❌ Error de conexión a la base de datos.'
 
@@ -104,24 +109,24 @@ def vender():
     if conn:
         try:
             cur = conn.cursor()
-
-            cur.execute(
-                "INSERT INTO factura (id_ropa, precio_venta) VALUES (%s, %s)",
-                (id_ropa, precio_venta)
-            )
-            cur.execute(
-                "UPDATE ropa SET estado = 'vendida' WHERE id_ropa = %s",
-                (id_ropa,)
-            )
-            conn.commit()
-            cur.close()
-        except Exception as e:
-            print(f'❌ Error al vender: {e}')
+            try:
+                cur.execute(
+                    "INSERT INTO factura (id_ropa, precio_venta) VALUES (%s, %s)",
+                    (id_ropa, precio_venta)
+                )
+                cur.execute(
+                    "UPDATE ropa SET estado = 'vendida' WHERE id_ropa = %s",
+                    (id_ropa,)
+                )
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                print("❌ Error al registrar venta:", e)
+            finally:
+                cur.close()
         finally:
             conn.close()
-
     return redirect('/')
 
-# 👇 Corrección para Render: puerto dinámico
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True)
