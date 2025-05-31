@@ -53,7 +53,7 @@ formulario_html = '''
 # 🔁 Usar URL de base de datos de entorno
 def conectar_db():
     try:
-        DATABASE_URL = os.environ.get("postgresql://postgres:iIziGCQWrDrhpTCFuQyetTUGpAqTMEFu@postgres.railway.internal:5432/railway")  # viene desde Render
+        DATABASE_URL = os.environ.get("DATABASE_URL")  # 👈 correcto: la variable de entorno
         conn = psycopg2.connect(DATABASE_URL)
         return conn
     except Exception as e:
